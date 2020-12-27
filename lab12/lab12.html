@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+</head>
+
+<body>
+	<canvas id="canvas" width="800" height="800"></canvas>
+
+    <script>
+
+        var intWidth = 600;
+        var intHeight = 600;
+
+        var planes = [{
+            vec_loc: [ 0.0, 0.0, 0.0 ],
+            vec_norm: [ 0.0, 1.0, 0.0 ],
+            vec_color: [ 1.0, 1.0, 1.0 ],
+            flt_spec: 10.0,
+            flt_ref: 0.1
+        }];
+        var spheres = [{
+            vec_loc: [ 0.0, 1.5, 0.0 ],
+            fltRadius: 1.0,
+            vec_color: [ 1.0, 1.0, 1.0 ],
+            flt_spec: 20.0,
+            flt_ref: 0.7
+        }, {
+            vec_loc: [ 0.0, 1.0, 1.5 ],
+            fltRadius: 0.7,
+            vec_color: [ 150.0 / 255.0, 0, 0 ],
+            flt_spec: 10.0,
+            flt_ref: 0.0
+        }, {
+            vec_loc: [ 0.0, 1.0, -1.5 ],
+            fltRadius: 0.7,
+            vec_color: [ 0, 150.0 / 255.0, 0 ],
+            flt_spec: 10.0,
+            flt_ref: 0.0
+        }, {
+            vec_loc: [ 1.5, 1.0, 0.0 ],
+            fltRadius: 0.7,
+            vec_color: [ 0, 0, 150.0 / 255.0 ],
+            flt_spec: 10.0,
+            flt_ref: 0.0
+        }, {
+            vec_loc: [ -1.5, 1.0, 0.0 ],
+            fltRadius: 0.7,
+            vec_color: [ 150.0 / 255.0, 150.0 / 255.0, 0 ],
+            flt_spec: 10.0,
+            flt_ref: 0.0
+        }];
+        var lights = [{
+            vec_loc: [ 0.0, 10.0, 5.0 ],
+            vecIntensity: [ 0.8, 0.8, 0.8 ]
+        }];
+
+        var vec_amb = [ 0.2, 0.2, 0.2 ];
+
+        var fltTime = 0.3;
+
+    var Scene = (function() {
+	function dot(vecA, vecB) {
+		return (vecA[0] * vecB[0]) + (vecA[1] * vecB[1]) + (vecA[2] * vecB[2]);
+	}
+
+	function normal(vecA) {
+		var fltLength = Math.max(0.00001, length(vecA));
+
+		vecA[0] /= fltLength;
+		vecA[1] /= fltLength;
+		vecA[2] /= fltLength;
+	}
+
+	function cross(vecA, vecB, vecC) {
+		vecA[0] = (vecB[1] * vecC[2]) - (vecB[2] * vecC[1]);
+		vecA[1] = (vecB[2] * vecC[0]) - (vecB[0] * vecC[2]);
+		vecA[2] = (vecB[0] * vecC[1]) - (vecB[1] * vecC[0]);
+	}
+    function length(vecA) {
+		return Math.sqrt(dot(vecA, vecA));
+	}
+	function intersection(obj_inter, vec_org, vec_direct, fltMin, fltMax, boolPeek) {
+		var flt_inter = Infinity;
+
+		normal(vec_direct);
+
+		for (var intPlane = 0; intPlane < planes.length; intPlane += 1) {
+			var vec_diff = [ 0.0, 0.0, 0.0 ];
+
+			vec_diff[0] = planes[intPlane].vec_loc[0] - vec_org[0];
+			vec_diff[1] = planes[intPlane].vec_loc[1] - vec_org[1];
+			vec_diff[2] = planes[intPlane].vec_loc[2] - vec_org[2];
+
+			var fltDenominator = dot(vec_direct, planes[intPlane].vec_norm);
+
+			if (Math.abs(fltDenominator) < 0.01) {
+				continue;
+			}
+
+			var flt_dist = dot(vec_diff, planes[intPlane].vec_norm) / fltDenominator;
+
+			if (flt_dist < fltMin) {
+				continue;
+
+			} else if (flt_dist > fltMax) {
+				continue;
+
+			} else if (flt_dist > flt_inter) {
+				continue;
+
+			}
+
+			if (boolPeek == true) {
+				return flt_dist;
+			}
+
+			flt_inter = flt_dist;
+
+			obj_inter.flt_dist = flt_dist;
+
+			obj_inter.vec_loc = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_loc[0] = vec_org[0] + (flt_dist * vec_direct[0]);
+			obj_inter.vec_loc[1] = vec_org[1] + (flt_dist * vec_direct[1]);
+			obj_inter.vec_loc[2] = vec_org[2] + (flt_dist * vec_direct[2]);
+
+			obj_inter.vec_norm = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_norm[0] = planes[intPlane].vec_norm[0];
+			obj_inter.vec_norm[1] = planes[intPlane].vec_norm[1];
+			obj_inter.vec_norm[2] = planes[intPlane].vec_norm[2];
+
+			obj_inter.vec_color = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_color[0] = planes[intPlane].vec_color[0];
+			obj_inter.vec_color[1] = planes[intPlane].vec_color[1];
+			obj_inter.vec_color[2] = planes[intPlane].vec_color[2];
+
+			obj_inter.flt_spec = planes[intPlane].flt_spec;
+			obj_inter.flt_ref = planes[intPlane].flt_ref;
+
+			var fltCheckerboard = Math.abs(Math.floor(obj_inter.vec_loc[0]) + Math.floor(obj_inter.vec_loc[2])) % 2.0;
+
+			obj_inter.vec_color[0] *= 0.5 + (0.5 * fltCheckerboard);
+			obj_inter.vec_color[1] *= 0.5 + (0.5 * fltCheckerboard);
+			obj_inter.vec_color[2] *= 0.5 + (0.5 * fltCheckerboard);
+		}
+
+		for (var int_sphere = 0; int_sphere < spheres.length; int_sphere += 1) {
+			var vec_diff = [ 0.0, 0.0, 0.0 ];
+
+			vec_diff[0] = vec_org[0] - spheres[int_sphere].vec_loc[0];
+			vec_diff[1] = vec_org[1] - spheres[int_sphere].vec_loc[1];
+			vec_diff[2] = vec_org[2] - spheres[int_sphere].vec_loc[2];
+
+			var fltAlpha = dot(vec_direct, vec_diff);
+			var fltDiscriminant = (fltAlpha * fltAlpha) - dot(vec_diff, vec_diff) + (spheres[int_sphere].fltRadius * spheres[int_sphere].fltRadius);
+
+			if (fltDiscriminant < 0.01) {
+				continue;
+			}
+
+			var fltFirst = (-1.0 * fltAlpha) - Math.sqrt(fltDiscriminant);
+			var fltSecond = (-1.0 * fltAlpha) + Math.sqrt(fltDiscriminant);
+			var flt_dist = Infinity;
+
+			if (fltSecond > fltMin) {
+				if (fltSecond < fltMax) {
+					flt_dist = Math.min(flt_dist, fltSecond);
+				}
+			}
+			if (fltFirst > fltMin) {
+				if (fltFirst < fltMax) {
+					flt_dist = Math.min(flt_dist, fltFirst);
+				}
+			}
+			if (boolPeek == true) {
+				return flt_dist;
+			}
+			if (flt_dist == Infinity) {
+				continue;
+			} else if (flt_dist > flt_inter) {
+				continue;
+			}
+			flt_inter = flt_dist;
+			obj_inter.flt_dist = flt_dist;
+
+			obj_inter.vec_loc = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_loc[0] = vec_org[0] + (flt_dist * vec_direct[0]);
+			obj_inter.vec_loc[1] = vec_org[1] + (flt_dist * vec_direct[1]);
+			obj_inter.vec_loc[2] = vec_org[2] + (flt_dist * vec_direct[2]);
+
+			obj_inter.vec_norm = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_norm[0] = obj_inter.vec_loc[0] - spheres[int_sphere].vec_loc[0];
+			obj_inter.vec_norm[1] = obj_inter.vec_loc[1] - spheres[int_sphere].vec_loc[1];
+			obj_inter.vec_norm[2] = obj_inter.vec_loc[2] - spheres[int_sphere].vec_loc[2];
+
+			obj_inter.vec_color = [ 0.0, 0.0, 0.0 ];
+			obj_inter.vec_color[0] = spheres[int_sphere].vec_color[0];
+			obj_inter.vec_color[1] = spheres[int_sphere].vec_color[1];
+			obj_inter.vec_color[2] = spheres[int_sphere].vec_color[2];
+
+			obj_inter.flt_spec = spheres[int_sphere].flt_spec;
+			obj_inter.flt_ref = spheres[int_sphere].flt_ref;
+		}
+		if (boolPeek != true) {
+			if (flt_inter < fltMax) {
+				normal(obj_inter.vec_norm);
+			}
+		}
+		return flt_inter;
+	}
+
+	function raytrace(vec_color, vec_org, vec_direct, fltMin, fltMax) {
+		vec_color[0] = 0.0;
+		vec_color[1] = 0.0;
+		vec_color[2] = 0.0;
+
+		var flt_ref = 1.0;
+
+		for (var intRecurse = 0; intRecurse < 8; intRecurse += 1) {
+			var obj_inter = {};
+			if (intersection(obj_inter, vec_org, vec_direct, fltMin, fltMax, false) > 10000.0) {
+				return;
+			}
+			var fltAngle = Math.abs(dot(vec_direct, obj_inter.vec_norm));
+			var fltSchlick = (1.0 - obj_inter.flt_ref) + (obj_inter.flt_ref * Math.pow(1.0 - fltAngle, 5.0));
+
+			for (var intLight = 0; intLight < lights.length; intLight += 1) {
+				var vec_light = [ 0.0, 0.0, 0.0 ];
+				vec_light[0] = lights[intLight].vec_loc[0] - obj_inter.vec_loc[0];
+				vec_light[1] = lights[intLight].vec_loc[1] - obj_inter.vec_loc[1];
+                vec_light[2] = lights[intLight].vec_loc[2] - obj_inter.vec_loc[2];
+                
+				if (intersection(obj_inter, obj_inter.vec_loc, vec_light, 0.01, 10000.0, true) < 10000.0) {
+					continue;
+				}
+
+				var fltDiffuse = dot(vec_light, obj_inter.vec_norm);
+
+				var vec_specular = [ 0.0, 0.0, 0.0 ];
+
+				vec_specular[0] = vec_light[0] - (2.0 * fltDiffuse * obj_inter.vec_norm[0]);
+				vec_specular[1] = vec_light[1] - (2.0 * fltDiffuse * obj_inter.vec_norm[1]);
+				vec_specular[2] = vec_light[2] - (2.0 * fltDiffuse * obj_inter.vec_norm[2]);
+
+				var flt_spec = Math.max(0.01, Math.pow(dot(vec_direct, vec_specular), obj_inter.flt_spec));
+
+				vec_color[0] += flt_ref * fltSchlick * (fltDiffuse + flt_spec) * obj_inter.vec_color[0] * lights[intLight].vecIntensity[0];
+				vec_color[1] += flt_ref * fltSchlick * (fltDiffuse + flt_spec) * obj_inter.vec_color[1] * lights[intLight].vecIntensity[1];
+				vec_color[2] += flt_ref * fltSchlick * (fltDiffuse + flt_spec) * obj_inter.vec_color[2] * lights[intLight].vecIntensity[2];
+			}
+
+			vec_color[0] += flt_ref * fltSchlick * obj_inter.vec_color[0] * vec_amb[0];
+			vec_color[1] += flt_ref * fltSchlick * obj_inter.vec_color[1] * vec_amb[1];
+			vec_color[2] += flt_ref * fltSchlick * obj_inter.vec_color[2] * vec_amb[2];
+
+			flt_ref *= 1.0 - fltSchlick;
+
+			if (flt_ref < 0.01) {
+				break;
+			}
+
+			var flt_refion = dot(vec_direct, obj_inter.vec_norm);
+
+			vec_org[0] = obj_inter.vec_loc[0];
+			vec_org[1] = obj_inter.vec_loc[1];
+			vec_org[2] = obj_inter.vec_loc[2];
+
+			vec_direct[0] = vec_direct[0] - (2.0 * flt_refion * obj_inter.vec_norm[0]);
+			vec_direct[1] = vec_direct[1] - (2.0 * flt_refion * obj_inter.vec_norm[1]);
+			vec_direct[2] = vec_direct[2] - (2.0 * flt_refion * obj_inter.vec_norm[2]);
+
+			fltMin = 0.01;
+
+			fltMax = 10000.0;
+		}
+	}
+
+	function render(charPixels) {
+		for (var intY = 0; intY < intHeight; intY += 1) {
+			for (var intX = 0; intX < intWidth; intX += 1) {
+				var fltX = (intX / intWidth) - 0.5;
+				var fltY = 0.5 - (intY / intHeight);
+
+				var vec_color = [ 0.0, 0.0, 0.0 ];
+				var vec_org = [ 6.0 * Math.cos(fltTime), 5.0, 6.0 * Math.sin(fltTime) ];
+				var vec_direct = [ 0.0 - vec_org[0], 1.0 - vec_org[1], 0.0 - vec_org[2] ];
+
+				normal(vec_direct);
+
+				var vec_r = [ 0.0, 0.0, 0.0 ];
+				var vec_up = [ 0.0, 1.0, 0.0 ];
+
+				cross(vec_r, vec_direct, vec_up);
+				cross(vec_up, vec_r, vec_direct);
+
+				vec_direct[0] += (fltX * vec_r[0]) + (fltY * vec_up[0]);
+				vec_direct[1] += (fltX * vec_r[1]) + (fltY * vec_up[1]);
+				vec_direct[2] += (fltX * vec_r[2]) + (fltY * vec_up[2]);
+
+				raytrace(vec_color, vec_org, vec_direct, 1.0, 10000.0);
+
+				charPixels[(intY * intWidth * 4) + (intX * 4) + 0] = Math.min(255.0, 255.0 * vec_color[0]);
+				charPixels[(intY * intWidth * 4) + (intX * 4) + 1] = Math.min(255.0, 255.0 * vec_color[1]);
+				charPixels[(intY * intWidth * 4) + (intX * 4) + 2] = Math.min(255.0, 255.0 * vec_color[2]);
+				charPixels[(intY * intWidth * 4) + (intX * 4) + 3] = 255;
+			}
+		}
+	}
+
+	return {
+		'render': render
+	}
+})();
+
+        var canvas = document.getElementById('canvas');
+
+        canvas.width = intWidth;
+        canvas.height = intHeight;
+
+        var ctx = canvas.getContext('2d');
+        var image = ctx.getImageData(0, 0, intWidth, intHeight);
+
+        (function f() {
+            var fltBefore = performance.now();
+            fltTime += 0.3;
+            Scene.render(image.data);
+            ctx.putImageData(image, 0, 0);
+            var fltAfter = performance.now();
+            console.log(fltAfter - fltBefore);
+            window.setTimeout(f, 1);
+        })();
+    </script>
+</body>
+</html>
